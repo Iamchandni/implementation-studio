@@ -2,8 +2,10 @@
 __pycache__/
 *.py[cod]
 .venv/
+venv/
 .env
 .pytest_cache/
+backend/data/
 
 # Node
 node_modules/

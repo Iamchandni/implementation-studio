@@ -93,6 +93,12 @@
             "null"
           ]
         },
+        "sheet": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "paragraph": {
           "type": [
             "integer",

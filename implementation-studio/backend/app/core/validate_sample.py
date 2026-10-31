@@ -24,7 +24,7 @@ def validate_file(instance_path: Path, schema_path: Path) -> list[str]:
 
 def main():
     cases = [
-        ("requirement", SAMPLES / "requirement_age.json", SCHEMAS / "requirements" / "requirement.schema.json"),
+        ("requirement", SAMPLES / "requirements.json", SCHEMAS / "requirements" / "requirement.schema.json"),
         ("parameter artefact", SAMPLES / "artefact_parameter.json", SCHEMAS / "artefacts" / "parameter.schema.json"),
         ("business rule artefact", SAMPLES / "artefact_business_rule.json", SCHEMAS / "artefacts" / "business_rule.schema.json"),
         ("workflow artefact", SAMPLES / "artefact_workflow.json", SCHEMAS / "artefacts" / "workflow.schema.json"),

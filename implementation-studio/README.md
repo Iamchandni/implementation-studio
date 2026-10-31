@@ -1,4 +1,4 @@
-# AI Implementation Studio — Milestone 1
+# AI Implementation Studio — Milestone 2
 
 A local prototype foundation for converting business requirements into structured, traceable implementation artefacts.
 
@@ -7,7 +7,7 @@ A local prototype foundation for converting business requirements into structure
 - Backend: Python + FastAPI
 - Database: PostgreSQL
 - Contracts: JSON Schema Draft 2020-12
-- LLM: provider-independent (not configured in Milestone 1)
+- LLM: OpenAI-compatible chat-completions API, with heuristic demo mode
 
 ## Repository structure
 
@@ -87,7 +87,18 @@ uvicorn app.main:app --reload
 - Health: http://localhost:8000/health
 - Schema catalog: http://localhost:8000/api/v1/schemas
 
-The database connection is configured but no tables are created in Milestone 1. Database models and migrations belong in the next implementation step.
+Uploaded originals, extracted text, source segments, warnings and canonical requirements are persisted as JSON and text files under `backend/data/documents/` by default. This local file store keeps the prototype usable without PostgreSQL; document data is excluded from Git. PostgreSQL remains configured for later relational persistence.
+
+### Document ingestion and requirement extraction
+
+- Upload PDF, DOCX, XLSX, JSON, TXT or Markdown files through the workspace or `POST /api/v1/documents` (maximum 25 MB).
+- Extracted segments retain page, section, paragraph, sheet and cell-range metadata where the source format exposes it. Empty or unreadable pages, sections and sheets are returned as warnings.
+- Run `POST /api/v1/documents/{document_id}/extract` with `{"mode":"demo"}` for clearly labelled heuristic candidates. They are marked `NEEDS_REVIEW` and carry low confidence.
+- Configure an OpenAI-compatible provider with `LLM_ENDPOINT`, `LLM_MODEL` and `LLM_API_KEY`, or provide endpoint/model/key in the UI for a single request. The key entered in the UI is not persisted.
+- Every extracted requirement must cite a verbatim quote from a source segment. The API validates the quote, canonical requirement schema, and source offsets before storing results.
+- `GET /api/v1/documents` lists stored sources; `GET /api/v1/documents/{document_id}` returns extracted text, segments, warnings and requirements.
+
+Common environment settings are shown in `backend/.env.example`. The default storage directory is relative to the backend directory.
 
 ## 3. Start the frontend
 
@@ -133,13 +144,7 @@ The parameter, business-rule and workflow schemas define category-specific confi
 
 The sample artefacts are illustrative canonical configurations. They are not guaranteed to be directly executable by a particular bank's lending platform.
 
-## LLM provider decision
-
-No provider SDK is installed or selected yet. Milestone 2 should introduce a small provider adapter interface, then implement the selected provider behind that interface. Do not put provider-specific calls inside extraction or artefact business logic.
-
 ## Next milestone
-1. Add document upload and parsing for PDF, DOCX, XLSX and text.
-2. Persist projects, source documents and extracted requirements in PostgreSQL.
-3. Add an LLM provider adapter and extraction prompts.
-4. Extract requirements with exact source evidence and processing warnings.
-5. Generate artefacts from the canonical requirements and validate them.
+1. Add project-level organization and PostgreSQL migrations for document and requirement records.
+2. Add human review actions and requirement editing with evidence-preserving change tracking.
+3. Generate implementation artefacts from approved canonical requirements and validate them.
