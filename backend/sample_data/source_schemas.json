@@ -1,0 +1,5 @@
+{
+  "customer_profile": {"full_name": "string", "date_of_birth": "date", "mobile": "string"},
+  "document_store": {"address_proof": "file_reference"},
+  "risk_engine": {"flagged": "boolean"}
+}

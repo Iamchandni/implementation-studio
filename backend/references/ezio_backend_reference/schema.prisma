@@ -1,0 +1,772 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// SYNC_TEST_A
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// PROBE_MARKER_2026_07_09_A
+// ============================================================
+// IDENTITY
+// ============================================================
+
+model User {
+  id             String    @id @default(uuid()) @db.Uuid
+  email          String    @unique
+  displayName    String?   @map("display_name")
+  avatar         String?
+  password       String? // hashed, null for SSO-only users
+  provider       String    @default("local") // 'local' | 'entra'
+  providerId     String?   @map("provider_id")
+  status         String    @default("active") // active | invited | suspended | disabled
+  lastLoginAt    DateTime? @map("last_login_at")
+  deactivatedAt  DateTime? @map("deactivated_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  sessions          Session[]
+  userRoles         UserRole[]
+  createdOrgs       Organization[]     @relation("OrgCreator")
+  ownedAgents       Agent[]            @relation("AgentOwner")
+  createdWorkflows  Workflow[]         @relation("WorkflowCreator")
+  startedExecutions Execution[]        @relation("ExecutionStarter")
+  publishedVersions WorkflowVersion[]  @relation("VersionPublisher")
+  reviewedApprovals Approval[]         @relation("ApprovalReviewer")
+  approvedServers   McpServer[]        @relation("ServerApprover")
+  approvedSnapshots ManifestSnapshot[] @relation("SnapshotApprover")
+  installedPkgs     InstalledPackage[] @relation("PackageInstaller")
+  createdPolicies   Policy[]           @relation("PolicyCreator")
+  auditLogs         AuditLog[]         @relation("AuditUser")
+  createdPrompts    Prompt[]           @relation("PromptCreator")
+  createdApiKeys    ApiKey[]           @relation("ApiKeyCreator")
+  createdAlerts     Alert[]            @relation("AlertCreator")
+  sentInvitations   UserInvitation[]   @relation("InvitationInviter")
+  toolOverrides     ToolPolicyOverride[] @relation("ToolOverrideCreator")
+
+  @@map("users")
+}
+
+model UserInvitation {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  email          String
+  roleId         String    @map("role_id") @db.Uuid
+  workspaceId    String    @map("workspace_id") @db.Uuid
+  tokenHash      String    @unique @map("token_hash")
+  invitedBy      String    @map("invited_by") @db.Uuid
+  expiresAt      DateTime  @map("expires_at")
+  acceptedAt     DateTime? @map("accepted_at")
+  revokedAt      DateTime? @map("revoked_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id])
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  inviter      User         @relation("InvitationInviter", fields: [invitedBy], references: [id])
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("user_invitations")
+}
+
+model Session {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  refreshToken String   @map("refresh_token")
+  expiresAt    DateTime @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ============================================================
+// ORGANIZATION HIERARCHY
+// ============================================================
+
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+  logo      String?
+  createdBy String   @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  creator       User               @relation("OrgCreator", fields: [createdBy], references: [id])
+  workspaces    Workspace[]
+  roles         Role[]
+  integrations  Integration[]
+  agents        Agent[]
+  workflows     Workflow[]
+  policies      Policy[]
+  mcpServers    McpServer[]
+  auditLogs     AuditLog[]
+  memories      Memory[]
+  installedPkgs InstalledPackage[]
+  prompts       Prompt[]
+  apiKeys       ApiKey[]
+  alerts        Alert[]
+  invitations   UserInvitation[]
+  toolOverrides ToolPolicyOverride[]
+
+  @@map("organizations")
+}
+
+model Workspace {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  projects     Project[]
+  userRoles    UserRole[]
+  agents       Agent[]      @relation("WorkspaceAgents")
+  invitations  UserInvitation[]
+
+  @@map("workspaces")
+}
+
+model Project {
+  id          String  @id @default(uuid()) @db.Uuid
+  workspaceId String  @map("workspace_id") @db.Uuid
+  name        String
+  description String?
+
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  environments Environment[]
+
+  @@map("projects")
+}
+
+model Environment {
+  id        String @id @default(uuid()) @db.Uuid
+  projectId String @map("project_id") @db.Uuid
+  name      String
+  type      String // 'development' | 'staging' | 'production'
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  connections Connection[]
+  workflows   Workflow[]
+  executions  Execution[]
+
+  @@map("environments")
+}
+
+// ============================================================
+// RBAC
+// ============================================================
+
+model Role {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  systemRole     Boolean @default(false) @map("system_role")
+
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+  invitations     UserInvitation[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id       String @id @default(uuid()) @db.Uuid
+  resource String // 'workflow' | 'agent' | 'approval' | 'execution' | etc.
+  action   String // 'create' | 'read' | 'update' | 'delete' | 'publish' | 'execute' | 'review'
+
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId      String @map("user_id") @db.Uuid
+  roleId      String @map("role_id") @db.Uuid
+  workspaceId String @map("workspace_id") @db.Uuid
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId, workspaceId])
+  @@map("user_roles")
+}
+
+// ============================================================
+// MARKETPLACE
+// ============================================================
+
+model MarketplacePackage {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String
+  type        String // 'mcp_server' | 'agent' | 'workflow_template' | 'policy_pack'
+  provider    String // 'official' | 'github' | 'enterprise' | 'local'
+  version     String
+  author      String?
+  icon        String?
+  description String?
+  manifest    Json
+
+  installedPackages InstalledPackage[]
+  mcpServers        McpServer[]
+
+  @@map("marketplace_packages")
+}
+
+model InstalledPackage {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  packageId        String   @map("package_id") @db.Uuid
+  installedVersion String   @map("installed_version")
+  installedBy      String   @map("installed_by") @db.Uuid
+  installedAt      DateTime @default(now()) @map("installed_at")
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  package      MarketplacePackage @relation(fields: [packageId], references: [id])
+  installer    User               @relation("PackageInstaller", fields: [installedBy], references: [id])
+
+  @@map("installed_packages")
+}
+
+// ============================================================
+// INTEGRATIONS & CONNECTIONS
+// ============================================================
+
+model Integration {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  name           String // 'GitHub', 'Slack', 'Notion'
+  type           String
+  icon           String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connections  Connection[]
+
+  @@map("integrations")
+}
+
+model Connection {
+  id            String @id @default(uuid()) @db.Uuid
+  integrationId String @map("integration_id") @db.Uuid
+  environmentId String @map("environment_id") @db.Uuid
+  name          String // 'GitHub Production', 'Slack Engineering'
+  authType      String @map("auth_type") // 'oauth2' | 'api_key' | 'pat' | 'bearer' | 'basic'
+  status        String @default("disconnected") // 'connected' | 'disconnected' | 'error'
+
+  integration      Integration        @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  environment      Environment        @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  secretReferences SecretReference[]
+  connectionHealth ConnectionHealth[]
+  mcpServers       McpServer[]
+
+  @@map("connections")
+}
+
+model SecretReference {
+  id             String   @id @default(uuid()) @db.Uuid
+  connectionId   String   @map("connection_id") @db.Uuid
+  vaultReference String   @map("vault_reference") // 'vault://github-prod'
+  encryptedValue String?  @map("encrypted_value") // AES-256 encrypted for MVP
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  connection Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@map("secret_references")
+}
+
+model ConnectionHealth {
+  id           String   @id @default(uuid()) @db.Uuid
+  connectionId String   @map("connection_id") @db.Uuid
+  status       String // 'healthy' | 'offline' | 'auth_failed' | 'rate_limited'
+  checkedAt    DateTime @default(now()) @map("checked_at")
+  errorMessage String?  @map("error_message")
+
+  connection Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@map("connection_health")
+}
+
+// ============================================================
+// MCP SERVERS & TOOLS
+// ============================================================
+
+model McpServer {
+  id             String    @id @default(uuid()) @db.Uuid
+  packageId      String?   @map("package_id") @db.Uuid
+  connectionId   String?   @map("connection_id") @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String
+  endpoint       String?
+  transport      String    @default("stdio") // 'stdio' | 'sse' | 'streamable-http'
+  command        String? // command to start stdio server
+  args           String[]  @default([]) // args for stdio server
+  version        String?
+  status         String    @default("disconnected") // 'connected' | 'disconnected' | 'error' | 'drift_detected'
+  toolManifest   Json?     @map("tool_manifest")
+  manifestHash   String?   @map("manifest_hash")
+  approvedAt     DateTime? @map("approved_at")
+  approvedBy     String?   @map("approved_by") @db.Uuid
+
+  package      MarketplacePackage? @relation(fields: [packageId], references: [id])
+  connection   Connection?         @relation(fields: [connectionId], references: [id])
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  approver     User?               @relation("ServerApprover", fields: [approvedBy], references: [id])
+  tools        McpTool[]
+  snapshots    ManifestSnapshot[]
+
+  @@map("mcp_servers")
+}
+
+model McpTool {
+  id               String  @id @default(uuid()) @db.Uuid
+  mcpServerId      String  @map("mcp_server_id") @db.Uuid
+  toolName         String  @map("tool_name")
+  description      String?
+  inputSchema      Json?   @map("input_schema")
+  outputSchema     Json?   @map("output_schema")
+  capability       String? // abstracted capability label
+  enabled          Boolean @default(true)
+  visibility       String  @default("workspace") // 'public' | 'workspace' | 'project' | 'private'
+  // Meta-tool expansion:
+  // - `metaConfig` is set on VIRTUAL tools that we auto-created by discovering
+  //   subactions of a meta-tool server (e.g. Zapier). Shape:
+  //   { underlyingTool: "execute_zapier_write_action", actionName: "gmail_send_email", extras?: {...} }
+  //   When agents call a virtual tool, the Gateway routes the call to the
+  //   underlying tool with the action name merged into the input.
+  metaConfig       Json?   @map("meta_config")
+  // - `hiddenFromAgents` = raw meta-tools like execute_zapier_write_action are
+  //   still callable programmatically but hidden from the agent tool picker
+  //   because we've expanded them into first-class virtual tools.
+  hiddenFromAgents Boolean @default(false) @map("hidden_from_agents")
+
+  mcpServer       McpServer        @relation(fields: [mcpServerId], references: [id], onDelete: Cascade)
+  agentTools      AgentTool[]
+  executionEvents ExecutionEvent[]
+  overrides       ToolPolicyOverride[]
+
+  @@unique([mcpServerId, toolName])
+  @@map("mcp_tools")
+}
+
+// Per-tool policy override. Trumps every policy in the evaluation pipeline.
+// When set, the gateway's PolicyService returns this verdict immediately
+// without consulting the org's policy list.
+model ToolPolicyOverride {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  mcpToolId      String   @map("mcp_tool_id") @db.Uuid
+  verdict        String   // 'ALLOW' | 'APPROVAL_REQUIRED' | 'DENY'
+  reason         String?
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  mcpTool      McpTool      @relation(fields: [mcpToolId], references: [id], onDelete: Cascade)
+  creator      User         @relation("ToolOverrideCreator", fields: [createdBy], references: [id])
+
+  @@unique([organizationId, mcpToolId])
+  @@index([organizationId])
+  @@map("tool_policy_overrides")
+}
+
+model ManifestSnapshot {
+  id            String   @id @default(uuid()) @db.Uuid
+  mcpServerId   String   @map("mcp_server_id") @db.Uuid
+  manifestJson  Json     @map("manifest_json")
+  hash          String
+  approvedBy    String?  @map("approved_by") @db.Uuid
+  snapshotAt    DateTime @default(now()) @map("snapshot_at")
+  driftDetected Boolean  @default(false) @map("drift_detected")
+
+  mcpServer McpServer @relation(fields: [mcpServerId], references: [id], onDelete: Cascade)
+  approver  User?     @relation("SnapshotApprover", fields: [approvedBy], references: [id])
+
+  @@map("manifest_snapshots")
+}
+
+// ============================================================
+// AGENTS
+// ============================================================
+
+model Agent {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  workspaceId    String?  @map("workspace_id") @db.Uuid
+  name           String
+  description    String?
+  category       String?
+  currentVersion Int      @default(1) @map("current_version")
+  owner          String   @map("owner") @db.Uuid
+  status         String   @default("draft") // draft | published | deprecated | archived
+  icon           String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspace    Workspace?       @relation("WorkspaceAgents", fields: [workspaceId], references: [id])
+  ownerUser    User             @relation("AgentOwner", fields: [owner], references: [id])
+  versions     AgentVersion[]
+  execEvents   ExecutionEvent[]
+  approvals    Approval[]
+
+  @@map("agents")
+}
+
+model AgentVersion {
+  id            String   @id @default(uuid()) @db.Uuid
+  agentId       String   @map("agent_id") @db.Uuid
+  version       Int
+  systemPrompt  String?  @map("system_prompt")
+  model         String // 'claude-sonnet-4-6' | 'gpt-4o' | 'gemini-pro'
+  temperature   Float    @default(0.1)
+  maxTokens     Int      @default(4096) @map("max_tokens")
+  memoryProfile String?  @map("memory_profile") // 'execution_only' | 'persistent' | 'enterprise' | 'full'
+  timeout       Int      @default(300) @map("timeout_seconds")
+  isPublished   Boolean  @default(false) @map("is_published")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  agent      Agent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  agentTools AgentTool[]
+
+  @@unique([agentId, version])
+  @@map("agent_versions")
+}
+
+model AgentTool {
+  id             String @id @default(uuid()) @db.Uuid
+  agentVersionId String @map("agent_version_id") @db.Uuid
+  mcpToolId      String @map("mcp_tool_id") @db.Uuid
+  permission     String // 'allow' | 'deny' | 'approval_required'
+
+  agentVersion AgentVersion @relation(fields: [agentVersionId], references: [id], onDelete: Cascade)
+  mcpTool      McpTool      @relation(fields: [mcpToolId], references: [id], onDelete: Cascade)
+
+  @@map("agent_tools")
+}
+
+// ============================================================
+// WORKFLOWS
+// ============================================================
+
+model Workflow {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  environmentId  String   @map("environment_id") @db.Uuid
+  name           String
+  description    String?
+  currentVersion Int      @default(1) @map("current_version")
+  status         String   @default("draft") // draft | published | deprecated | archived
+  tags           String[] @default([])
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  environment  Environment       @relation(fields: [environmentId], references: [id])
+  creator      User              @relation("WorkflowCreator", fields: [createdBy], references: [id])
+  versions     WorkflowVersion[]
+  executions   Execution[]
+
+  @@map("workflows")
+}
+
+model WorkflowVersion {
+  id          String    @id @default(uuid()) @db.Uuid
+  workflowId  String    @map("workflow_id") @db.Uuid
+  version     Int
+  workflowDsl Json      @map("workflow_dsl") // canonical execution format
+  canvasJson  Json?     @map("canvas_json") // React Flow representation (internal)
+  isPublished Boolean   @default(false) @map("is_published")
+  publishedAt DateTime? @map("published_at")
+  publishedBy String?   @map("published_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  workflow   Workflow    @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  publisher  User?       @relation("VersionPublisher", fields: [publishedBy], references: [id])
+  executions Execution[]
+
+  @@unique([workflowId, version])
+  @@map("workflow_versions")
+}
+
+model WorkflowTemplate {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  category    String?
+  workflowDsl Json    @map("workflow_dsl")
+  author      String?
+  isPublic    Boolean @default(true) @map("is_public")
+
+  @@map("workflow_templates")
+}
+
+// ============================================================
+// EXECUTION
+// ============================================================
+
+model Execution {
+  id                String    @id @default(uuid()) @db.Uuid
+  workflowId        String    @map("workflow_id") @db.Uuid
+  workflowVersionId String    @map("workflow_version_id") @db.Uuid
+  environmentId     String    @map("environment_id") @db.Uuid
+  startedBy         String    @map("started_by") @db.Uuid
+  status            String    @default("queued") // queued | planning | running | waiting_approval | completed | cancelled | failed
+  triggerInput      String?   @map("trigger_input")
+  startedAt         DateTime  @default(now()) @map("started_at")
+  completedAt       DateTime? @map("completed_at")
+  totalTokens       Int       @default(0) @map("total_tokens")
+  totalCostUsd      Float     @default(0) @map("total_cost_usd")
+  totalLatencyMs    Int       @default(0) @map("total_latency_ms")
+  errorMessage      String?   @map("error_message")
+
+  workflow        Workflow          @relation(fields: [workflowId], references: [id])
+  workflowVersion WorkflowVersion   @relation(fields: [workflowVersionId], references: [id])
+  environment     Environment       @relation(fields: [environmentId], references: [id])
+  starter         User              @relation("ExecutionStarter", fields: [startedBy], references: [id])
+  nodes           ExecutionNode[]
+  events          ExecutionEvent[]
+  outputs         ExecutionOutput[]
+  approvals       Approval[]
+  memorySnapshots MemorySnapshot[]
+
+  @@map("executions")
+}
+
+model ExecutionNode {
+  id           String    @id @default(uuid()) @db.Uuid
+  executionId  String    @map("execution_id") @db.Uuid
+  nodeId       String    @map("node_id") // references workflow DSL node id
+  nodeType     String    @map("node_type")
+  nodeLabel    String?   @map("node_label")
+  status       String    @default("pending") // pending | running | completed | failed | skipped | waiting_approval | blocked
+  startedAt    DateTime? @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+  tokensUsed   Int       @default(0) @map("tokens_used")
+  costUsd      Float     @default(0) @map("cost_usd")
+  latencyMs    Int       @default(0) @map("latency_ms")
+  errorMessage String?   @map("error_message")
+
+  execution Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@map("execution_nodes")
+}
+
+model ExecutionEvent {
+  id           String   @id @default(uuid()) @db.Uuid
+  executionId  String   @map("execution_id") @db.Uuid
+  eventType    String   @map("event_type") // ExecutionStarted | NodeStarted | ToolCalled | etc.
+  nodeId       String?  @map("node_id")
+  agentId      String?  @map("agent_id") @db.Uuid
+  mcpToolId    String?  @map("mcp_tool_id") @db.Uuid
+  payload      Json?
+  inputHash    String?  @map("input_hash")
+  outputHash   String?  @map("output_hash")
+  policyResult String?  @map("policy_result")
+  tokensUsed   Int      @default(0) @map("tokens_used")
+  latencyMs    Int      @default(0) @map("latency_ms")
+  costUsd      Float    @default(0) @map("cost_usd")
+  prevHash     String?  @map("prev_hash") // SHA-256 of previous event â€” hash chain
+  timestamp    DateTime @default(now())
+
+  execution Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  agent     Agent?    @relation(fields: [agentId], references: [id])
+  mcpTool   McpTool?  @relation(fields: [mcpToolId], references: [id])
+
+  @@map("execution_events")
+}
+
+model ExecutionOutput {
+  id          String   @id @default(uuid()) @db.Uuid
+  executionId String   @map("execution_id") @db.Uuid
+  outputType  String   @map("output_type") // 'markdown' | 'json' | 'pdf' | 'csv'
+  content     String?
+  storagePath String?  @map("storage_path")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  execution Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@map("execution_outputs")
+}
+
+// ============================================================
+// GOVERNANCE
+// ============================================================
+
+model Policy {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  scopeType      String   @map("scope_type") // 'organization' | 'workspace' | 'environment' | 'workflow' | 'agent' | 'tool'
+  scopeId        String?  @map("scope_id") @db.Uuid
+  rules          Json // {allow: [], deny: [], approval_required: [], mask: [], rate_limit: {}}
+  version        Int      @default(1)
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator      User         @relation("PolicyCreator", fields: [createdBy], references: [id])
+
+  @@map("policies")
+}
+
+model Approval {
+  id                String    @id @default(uuid()) @db.Uuid
+  executionId       String    @map("execution_id") @db.Uuid
+  nodeId            String?   @map("node_id")
+  agentId           String?   @map("agent_id") @db.Uuid
+  agentVersionId    String?   @map("agent_version_id") @db.Uuid
+  mcpServerId       String?   @map("mcp_server_id") @db.Uuid
+  mcpToolId         String?   @map("mcp_tool_id") @db.Uuid
+  toolName          String?   @map("tool_name")
+  actionDescription String    @map("action_description")
+  inputPayload      Json?     @map("input_payload")
+  requiredRole      String?   @map("required_role")
+  status            String    @default("pending") // pending | approved | rejected | expired
+  requestedAt       DateTime  @default(now()) @map("requested_at")
+  reviewedBy        String?   @map("reviewed_by") @db.Uuid
+  reviewedAt        DateTime? @map("reviewed_at")
+  expiresAt         DateTime? @map("expires_at")
+
+  execution Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  agent     Agent?    @relation(fields: [agentId], references: [id])
+  reviewer  User?     @relation("ApprovalReviewer", fields: [reviewedBy], references: [id])
+
+  @@map("approvals")
+}
+
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  timestamp      DateTime @default(now())
+  correlationId  String?  @map("correlation_id") @db.Uuid
+  executionId    String?  @map("execution_id") @db.Uuid
+  userId         String?  @map("user_id") @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  resourceType   String?  @map("resource_type")
+  resourceId     String?  @map("resource_id") @db.Uuid
+  action         String
+  metadata       Json?
+  ipAddress      String?  @map("ip_address")
+
+  user         User?         @relation("AuditUser", fields: [userId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// ============================================================
+// MEMORY
+// ============================================================
+
+model Memory {
+  id               String    @id @default(uuid()) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  scopeType        String    @map("scope_type") // 'execution' | 'agent' | 'enterprise' | 'historical'
+  scopeId          String?   @map("scope_id") @db.Uuid
+  contentReference String?   @map("content_reference")
+  classification   String    @default("internal") // 'public' | 'internal' | 'confidential' | 'restricted'
+  labels           Json?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  expiresAt        DateTime? @map("expires_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("memories")
+}
+
+model MemorySnapshot {
+  id           String   @id @default(uuid()) @db.Uuid
+  executionId  String   @map("execution_id") @db.Uuid
+  snapshotJson Json     @map("snapshot_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  execution Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@map("memory_snapshots")
+}
+
+// ============================================================
+// PROMPTS
+// ============================================================
+
+model Prompt {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  content        String
+  variables      Json?
+  category       String?
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator      User         @relation("PromptCreator", fields: [createdBy], references: [id])
+
+  @@map("prompts")
+}
+
+// ============================================================
+// API KEYS
+// ============================================================
+
+model ApiKey {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String
+  keyHash        String    @unique @map("key_hash")
+  keyPreview     String    @map("key_preview")
+  scopes         String[]  @default([])
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at")
+  lastUsedAt     DateTime? @map("last_used_at")
+  expiresAt      DateTime? @map("expires_at")
+  revoked        Boolean   @default(false)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator      User         @relation("ApiKeyCreator", fields: [createdBy], references: [id])
+
+  @@map("api_keys")
+}
+
+// ============================================================
+// ALERTS
+// ============================================================
+
+model Alert {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  triggerType    String    @map("trigger_type")
+  triggerConfig  Json      @map("trigger_config")
+  channels       Json
+  enabled        Boolean   @default(true)
+  lastFiredAt    DateTime? @map("last_fired_at")
+  fireCount      Int       @default(0) @map("fire_count")
+  createdBy      String    @map("created_by") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator      User         @relation("AlertCreator", fields: [createdBy], references: [id])
+
+  @@map("alerts")
+}

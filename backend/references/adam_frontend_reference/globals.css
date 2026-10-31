@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /*
+   * Brillio brand palette
+   *  - Deep Indigo #211747  → hsl(252 51% 18%)
+   *  - Brand Green #2CC84D  → hsl(133 64% 48%)
+   *  - Black / White supporting
+   * Primary CTAs use Brillio green so buttons "pop"; large surfaces (nav, cards)
+   * are indigo-tinted so the app reads on-brand.
+   */
+  :root {
+    --background: 0 0% 100%;              /* pure white canvas */
+    --foreground: 252 45% 12%;            /* near-black indigo text */
+    --card: 0 0% 100%;
+    --card-foreground: 252 45% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 252 45% 12%;
+
+    --primary: 133 64% 42%;               /* Brillio green (slightly darkened for AA on white) */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 252 40% 96%;             /* very pale indigo */
+    --secondary-foreground: 252 51% 18%;
+
+    --muted: 252 25% 96%;
+    --muted-foreground: 252 15% 42%;
+
+    --accent: 252 25% 94%;                /* gentle indigo-tinted surface for hovers */
+    --accent-foreground: 252 45% 12%;
+
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 252 20% 88%;
+    --input: 252 20% 88%;
+    --ring: 133 64% 48%;
+
+    --radius: 0.5rem;
+  }
+
+  /* Dark theme — deep-indigo canvas that matches the brand board */
+  .dark {
+    --background: 252 45% 8%;             /* darker than brand indigo so cards pop */
+    --foreground: 0 0% 98%;
+    --card: 252 51% 13%;                  /* brand indigo, slightly lightened */
+    --card-foreground: 0 0% 98%;
+    --popover: 252 51% 13%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 133 64% 50%;               /* Brillio green, full brightness */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 252 35% 18%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 252 30% 14%;
+    --muted-foreground: 252 15% 65%;
+
+    --accent: 252 30% 18%;                /* subtle indigo tint for hovers, not full brand */
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 62% 55%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 252 30% 20%;
+    --input: 252 30% 18%;
+    --ring: 133 64% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: 'ss01', 'cv11';
+  }
+  /* Outfit renders headings well at slightly tightened tracking */
+  h1, h2, h3, h4 {
+    letter-spacing: -0.01em;
+  }
+}
+
+/* React Flow attribution hide + edge/handle styling tweaks */
+.react-flow__attribution { display: none !important; }
+.react-flow__edge-path { stroke: hsl(var(--muted-foreground) / 0.5); stroke-width: 1.5; }
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:focus .react-flow__edge-path { stroke: hsl(var(--primary)); }
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke-dasharray: 5;
+  animation: dashdraw 0.5s linear infinite;
+}
+@keyframes dashdraw { from { stroke-dashoffset: 10; } to { stroke-dashoffset: 0; } }
+
+/* Cinematic node reveal: nodes gently scale + fade in when first mounted.
+   Used both on normal load and during the AI-Build reveal animation. */
+@keyframes node-reveal {
+  from { opacity: 0; transform: scale(0.7); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.react-flow__node {
+  animation: node-reveal 350ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Edge draw-on: newly added edges animate their path length from 0 to full.
+   Only applied during the AI reveal via a scoped class on the canvas container. */
+.reveal-active .react-flow__edge-path {
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+  animation: edge-draw 500ms ease-out forwards;
+}
+@keyframes edge-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Typewriter caret pulse for the reveal status bar */
+@keyframes caret-blink {
+  50% { opacity: 0; }
+}
+.caret::after {
+  content: '▋';
+  margin-left: 2px;
+  animation: caret-blink 900ms steps(1) infinite;
+}
+
+/* Reveal status bar entrance */
+@keyframes status-bar-in {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+.reveal-status-bar {
+  animation: status-bar-in 300ms ease-out;
+}
+
+.react-flow__handle {
+  width: 8px !important;
+  height: 8px !important;
+  border: 1.5px solid hsl(var(--background)) !important;
+  background: hsl(var(--muted-foreground) / 0.6) !important;
+}
+.react-flow__handle:hover {
+  background: hsl(var(--primary)) !important;
+}
+/* Reveal all 4-side handles when the parent node is hovered, so users can
+   drag connections from any direction. Default state hides the "extra"
+   handles to keep the node tile clean. */
+.react-flow__node:hover .react-flow__handle {
+  opacity: 1 !important;
+}
+.react-flow__controls { box-shadow: none !important; }
+.react-flow__controls-button {
+  background: hsl(var(--card)) !important;
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+.react-flow__minimap { background: hsl(var(--card)) !important; border-radius: 4px; }
