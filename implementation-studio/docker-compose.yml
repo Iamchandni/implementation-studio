@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: implementation-studio-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: implementation_studio
+      POSTGRES_USER: studio
+      POSTGRES_PASSWORD: studio_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - implementation_studio_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studio -d implementation_studio"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  implementation_studio_pgdata:

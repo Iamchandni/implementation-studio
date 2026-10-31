@@ -1,0 +1,50 @@
+{
+  "artefact_id": "ART-003",
+  "artefact_type": "WORKFLOW",
+  "name": "high_value_loan_approval",
+  "description": "Two-level approval for loan applications above INR 1,000,000.",
+  "configuration": {
+    "trigger": {
+      "event": "LOAN_APPLICATION_SUBMITTED",
+      "conditions": [
+        {
+          "field": "loan.amount",
+          "operator": "GREATER_THAN",
+          "value": 1000000
+        }
+      ]
+    },
+    "steps": [
+      {
+        "step_id": "STEP-1",
+        "name": "Manager approval",
+        "actor": "MANAGER",
+        "action": "APPROVE",
+        "approval_required": true,
+        "on_approve": "STEP-2",
+        "on_reject": "REJECTED"
+      },
+      {
+        "step_id": "STEP-2",
+        "name": "Senior Manager approval",
+        "actor": "SENIOR_MANAGER",
+        "action": "APPROVE",
+        "approval_required": true,
+        "on_approve": "APPROVED",
+        "on_reject": "REJECTED"
+      }
+    ],
+    "terminal_states": [
+      "APPROVED",
+      "REJECTED"
+    ]
+  },
+  "source_requirements": [
+    "REQ-005"
+  ],
+  "status": "DRAFT",
+  "version": 1,
+  "schema_version": "1.0",
+  "created_at": "2026-10-31T12:00:00Z",
+  "updated_at": "2026-10-31T12:00:00Z"
+}

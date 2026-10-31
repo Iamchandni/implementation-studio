@@ -1,0 +1,29 @@
+{
+  "artefact_id": "ART-002",
+  "artefact_type": "BUSINESS_RULE",
+  "name": "applicant_age_eligibility",
+  "description": "Applicant must be within the inclusive age range.",
+  "configuration": {
+    "condition": {
+      "field": "applicant.age",
+      "operator": "BETWEEN",
+      "value": [
+        21,
+        60
+      ]
+    },
+    "outcome": {
+      "decision": "ELIGIBLE",
+      "message": "Applicant meets the age eligibility rule."
+    },
+    "priority": 1
+  },
+  "source_requirements": [
+    "REQ-001"
+  ],
+  "status": "DRAFT",
+  "version": 1,
+  "schema_version": "1.0",
+  "created_at": "2026-10-31T12:00:00Z",
+  "updated_at": "2026-10-31T12:00:00Z"
+}

@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Business Rule Artefact",
+  "description": "Business Rule Artefact contract. Includes the common artefact envelope and a category-specific configuration.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artefact_id",
+    "artefact_type",
+    "name",
+    "configuration",
+    "source_requirements",
+    "status",
+    "version"
+  ],
+  "properties": {
+    "artefact_id": {
+      "type": "string",
+      "pattern": "^ART-[A-Z0-9-]+$"
+    },
+    "artefact_type": {
+      "const": "BUSINESS_RULE"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "condition",
+        "outcome"
+      ],
+      "properties": {
+        "condition": {
+          "type": "object",
+          "required": [
+            "field",
+            "operator",
+            "value"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string"
+            },
+            "operator": {
+              "enum": [
+                "EQUALS",
+                "NOT_EQUALS",
+                "GREATER_THAN",
+                "GREATER_THAN_OR_EQUAL",
+                "LESS_THAN",
+                "LESS_THAN_OR_EQUAL",
+                "BETWEEN",
+                "IN",
+                "NOT_IN",
+                "EXISTS"
+              ]
+            },
+            "value": {}
+          }
+        },
+        "outcome": {
+          "type": "object",
+          "required": [
+            "decision"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "decision": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            },
+            "next_action": {
+              "type": "string"
+            }
+          }
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "source_requirements": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^REQ-[A-Z0-9-]+$"
+      }
+    },
+    "status": {
+      "enum": [
+        "DRAFT",
+        "VALIDATION_FAILED",
+        "VALIDATED",
+        "IN_REVIEW",
+        "APPROVED",
+        "REJECTED",
+        "PUBLISHED"
+      ]
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Parameter Artefact",
+  "description": "Parameter Artefact contract. Includes the common artefact envelope and a category-specific configuration.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artefact_id",
+    "artefact_type",
+    "name",
+    "configuration",
+    "source_requirements",
+    "status",
+    "version"
+  ],
+  "properties": {
+    "artefact_id": {
+      "type": "string",
+      "pattern": "^ART-[A-Z0-9-]+$"
+    },
+    "artefact_type": {
+      "const": "PARAMETER"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "data_type"
+      ],
+      "properties": {
+        "data_type": {
+          "enum": [
+            "INTEGER",
+            "NUMBER",
+            "STRING",
+            "BOOLEAN",
+            "CURRENCY",
+            "PERCENTAGE",
+            "DATE"
+          ]
+        },
+        "value": {},
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        },
+        "allowed_values": {
+          "type": "array",
+          "items": {}
+        },
+        "unit": {
+          "type": "string"
+        },
+        "mandatory": {
+          "type": "boolean"
+        }
+      }
+    },
+    "source_requirements": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^REQ-[A-Z0-9-]+$"
+      }
+    },
+    "status": {
+      "enum": [
+        "DRAFT",
+        "VALIDATION_FAILED",
+        "VALIDATED",
+        "IN_REVIEW",
+        "APPROVED",
+        "REJECTED",
+        "PUBLISHED"
+      ]
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

@@ -1,0 +1,217 @@
+[
+  {
+    "requirement_id": "REQ-001",
+    "requirement_type": "BUSINESS_RULE",
+    "title": "Applicant age eligibility",
+    "statement": "Applicants must be between 21 and 60 years of age, inclusive.",
+    "normalized_intent": "Applicant age must be within the inclusive range 21 to 60.",
+    "subject": "LOAN_APPLICANT",
+    "attributes": {
+      "field": "age",
+      "minimum": 21,
+      "maximum": 60,
+      "inclusive": true
+    },
+    "conditions": [],
+    "outcomes": [],
+    "dependencies": [],
+    "source": {
+      "document_id": "DOC-PL-001",
+      "document_name": "personal_loan_brd.md",
+      "page": 1,
+      "section": "1. Applicant eligibility",
+      "paragraph": null,
+      "source_text": "Applicants must be between 21 and 60 years of age, inclusive.",
+      "char_start": null,
+      "char_end": null
+    },
+    "confidence": 1.0,
+    "status": "EXTRACTED",
+    "open_questions": []
+  },
+  {
+    "requirement_id": "REQ-002",
+    "requirement_type": "VALIDATION",
+    "title": "Minimum monthly salary",
+    "statement": "Applicants must have a minimum monthly salary of INR 30,000.",
+    "normalized_intent": "Applicant monthly salary must be at least INR 30,000.",
+    "subject": "LOAN_APPLICANT",
+    "attributes": {
+      "field": "monthly_salary",
+      "minimum": 30000,
+      "currency": "INR"
+    },
+    "conditions": [],
+    "outcomes": [],
+    "dependencies": [],
+    "source": {
+      "document_id": "DOC-PL-001",
+      "document_name": "personal_loan_brd.md",
+      "page": 1,
+      "section": "1. Applicant eligibility",
+      "paragraph": null,
+      "source_text": "Applicants must have a minimum monthly salary of INR 30,000.",
+      "char_start": null,
+      "char_end": null
+    },
+    "confidence": 1.0,
+    "status": "EXTRACTED",
+    "open_questions": []
+  },
+  {
+    "requirement_id": "REQ-003",
+    "requirement_type": "BUSINESS_RULE",
+    "title": "Salary credit history",
+    "statement": "The applicant's salary must have been credited to the bank for at least six consecutive months.",
+    "normalized_intent": "Require at least six consecutive months of salary credits to the bank.",
+    "subject": "LOAN_APPLICANT",
+    "attributes": {
+      "field": "salary_credit_months",
+      "minimum": 6,
+      "consecutive": true
+    },
+    "conditions": [],
+    "outcomes": [],
+    "dependencies": [],
+    "source": {
+      "document_id": "DOC-PL-001",
+      "document_name": "personal_loan_brd.md",
+      "page": 1,
+      "section": "1. Applicant eligibility",
+      "paragraph": null,
+      "source_text": "The applicant's salary must have been credited to the bank for at least six consecutive months.",
+      "char_start": null,
+      "char_end": null
+    },
+    "confidence": 1.0,
+    "status": "EXTRACTED",
+    "open_questions": []
+  },
+  {
+    "requirement_id": "REQ-004",
+    "requirement_type": "PARAMETER",
+    "title": "Loan amount range",
+    "statement": "The minimum personal loan amount is INR 50,000. The maximum personal loan amount is INR 25,00,000.",
+    "normalized_intent": "Loan principal must be between INR 50,000 and INR 2,500,000.",
+    "subject": "PERSONAL_LOAN",
+    "attributes": {
+      "field": "loan_amount",
+      "minimum": 50000,
+      "maximum": 2500000,
+      "currency": "INR"
+    },
+    "conditions": [],
+    "outcomes": [],
+    "dependencies": [],
+    "source": {
+      "document_id": "DOC-PL-001",
+      "document_name": "personal_loan_brd.md",
+      "page": 1,
+      "section": "2. Loan amount",
+      "paragraph": null,
+      "source_text": "The minimum personal loan amount is INR 50,000. The maximum personal loan amount is INR 25,00,000.",
+      "char_start": null,
+      "char_end": null
+    },
+    "confidence": 1.0,
+    "status": "EXTRACTED",
+    "open_questions": []
+  },
+  {
+    "requirement_id": "REQ-005",
+    "requirement_type": "WORKFLOW",
+    "title": "High-value loan approval",
+    "statement": "Loan applications with an amount greater than INR 10,00,000 require approval from two levels: a Manager followed by a Senior Manager.",
+    "normalized_intent": "Route applications above INR 1,000,000 through Manager and then Senior Manager approval.",
+    "subject": "LOAN_APPLICATION",
+    "attributes": {
+      "field": "loan_amount",
+      "operator": "GREATER_THAN",
+      "value": 1000000,
+      "approval_actors": [
+        "MANAGER",
+        "SENIOR_MANAGER"
+      ]
+    },
+    "conditions": [],
+    "outcomes": [],
+    "dependencies": [],
+    "source": {
+      "document_id": "DOC-PL-001",
+      "document_name": "personal_loan_brd.md",
+      "page": 1,
+      "section": "3. Approval workflow",
+      "paragraph": null,
+      "source_text": "Loan applications with an amount greater than INR 10,00,000 require approval from two levels: a Manager followed by a Senior Manager.",
+      "char_start": null,
+      "char_end": null
+    },
+    "confidence": 1.0,
+    "status": "EXTRACTED",
+    "open_questions": []
+  },
+  {
+    "requirement_id": "REQ-006",
+    "requirement_type": "WORKFLOW",
+    "title": "Standard loan approval",
+    "statement": "Applications with an amount of INR 10,00,000 or less require approval from one Manager.",
+    "normalized_intent": "Route applications at or below INR 1,000,000 through one Manager approval.",
+    "subject": "LOAN_APPLICATION",
+    "attributes": {
+      "field": "loan_amount",
+      "operator": "LESS_THAN_OR_EQUAL",
+      "value": 1000000,
+      "approval_actors": [
+        "MANAGER"
+      ]
+    },
+    "conditions": [],
+    "outcomes": [],
+    "dependencies": [],
+    "source": {
+      "document_id": "DOC-PL-001",
+      "document_name": "personal_loan_brd.md",
+      "page": 1,
+      "section": "3. Approval workflow",
+      "paragraph": null,
+      "source_text": "Applications with an amount of INR 10,00,000 or less require approval from one Manager.",
+      "char_start": null,
+      "char_end": null
+    },
+    "confidence": 1.0,
+    "status": "EXTRACTED",
+    "open_questions": []
+  },
+  {
+    "requirement_id": "REQ-007",
+    "requirement_type": "OPEN_QUESTION",
+    "title": "High-risk applicant verification",
+    "statement": "High-risk applicants should undergo additional verification.",
+    "normalized_intent": "Additional verification is required for high-risk applicants, but the trigger and procedure are unspecified.",
+    "subject": "LOAN_APPLICANT",
+    "attributes": {
+      "field": "risk_category",
+      "required_action": "ADDITIONAL_VERIFICATION"
+    },
+    "conditions": [],
+    "outcomes": [],
+    "dependencies": [],
+    "source": {
+      "document_id": "DOC-PL-001",
+      "document_name": "personal_loan_brd.md",
+      "page": 1,
+      "section": "4. Additional verification \u2014 clarification required",
+      "paragraph": null,
+      "source_text": "High-risk applicants should undergo additional verification.",
+      "char_start": null,
+      "char_end": null
+    },
+    "confidence": 1.0,
+    "status": "NEEDS_REVIEW",
+    "open_questions": [
+      "How is high risk defined?",
+      "Which verification procedure must be performed?",
+      "Which team or role is responsible for verification?"
+    ]
+  }
+]

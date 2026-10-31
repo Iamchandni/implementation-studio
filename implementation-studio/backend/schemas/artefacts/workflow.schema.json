@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Workflow Artefact",
+  "description": "Workflow Artefact contract. Includes the common artefact envelope and a category-specific configuration.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artefact_id",
+    "artefact_type",
+    "name",
+    "configuration",
+    "source_requirements",
+    "status",
+    "version"
+  ],
+  "properties": {
+    "artefact_id": {
+      "type": "string",
+      "pattern": "^ART-[A-Z0-9-]+$"
+    },
+    "artefact_type": {
+      "const": "WORKFLOW"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trigger",
+        "steps"
+      ],
+      "properties": {
+        "trigger": {
+          "type": "object",
+          "required": [
+            "event"
+          ],
+          "properties": {
+            "event": {
+              "type": "string"
+            },
+            "conditions": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "step_id",
+              "name",
+              "actor",
+              "action"
+            ],
+            "properties": {
+              "step_id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "actor": {
+                "type": "string"
+              },
+              "action": {
+                "type": "string"
+              },
+              "approval_required": {
+                "type": "boolean"
+              },
+              "on_approve": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "on_reject": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "terminal_states": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "source_requirements": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^REQ-[A-Z0-9-]+$"
+      }
+    },
+    "status": {
+      "enum": [
+        "DRAFT",
+        "VALIDATION_FAILED",
+        "VALIDATED",
+        "IN_REVIEW",
+        "APPROVED",
+        "REJECTED",
+        "PUBLISHED"
+      ]
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "schema_version": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

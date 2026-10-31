@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://implementation-studio.local/schemas/requirement.schema.json",
+  "title": "Canonical Requirement",
+  "description": "Normalized business requirement with source evidence and review state.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "requirement_id",
+    "requirement_type",
+    "title",
+    "statement",
+    "source",
+    "status"
+  ],
+  "properties": {
+    "requirement_id": {
+      "type": "string",
+      "pattern": "^REQ-[A-Z0-9-]+$"
+    },
+    "requirement_type": {
+      "enum": [
+        "BUSINESS_RULE",
+        "PARAMETER",
+        "WORKFLOW",
+        "FIELD",
+        "VALIDATION",
+        "DEPENDENCY",
+        "INTEGRATION",
+        "OPEN_QUESTION"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "statement": {
+      "type": "string",
+      "minLength": 1
+    },
+    "normalized_intent": {
+      "type": "string"
+    },
+    "subject": {
+      "type": "string"
+    },
+    "attributes": {
+      "type": "object"
+    },
+    "conditions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "outcomes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "document_name",
+        "source_text"
+      ],
+      "properties": {
+        "document_id": {
+          "type": "string"
+        },
+        "document_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "page": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "section": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "paragraph": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "source_text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "char_start": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "char_end": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "confidence": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "status": {
+      "enum": [
+        "EXTRACTED",
+        "NEEDS_REVIEW",
+        "APPROVED",
+        "REJECTED",
+        "SUPERSEDED"
+      ]
+    },
+    "open_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
