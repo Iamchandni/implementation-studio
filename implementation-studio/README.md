@@ -7,7 +7,7 @@ A local prototype foundation for converting business requirements into structure
 - Backend: Python + FastAPI
 - Database: PostgreSQL
 - Contracts: JSON Schema Draft 2020-12
-- LLM: OpenAI-compatible chat-completions API, with heuristic demo mode
+- LLM: native Gemini or OpenRouter/OpenAI-compatible chat-completions API, with heuristic demo mode
 
 ## Repository structure
 
@@ -95,6 +95,8 @@ Uploaded originals, extracted text, source segments, warnings and canonical requ
 - Extracted segments retain page, section, paragraph, sheet and cell-range metadata where the source format exposes it. Empty or unreadable pages, sections and sheets are returned as warnings.
 - Run `POST /api/v1/documents/{document_id}/extract` with `{"mode":"demo"}` for clearly labelled heuristic candidates. They are marked `NEEDS_REVIEW` and carry low confidence.
 - Configure an OpenAI-compatible provider with `LLM_ENDPOINT`, `LLM_MODEL` and `LLM_API_KEY`, or provide endpoint/model/key in the UI for a single request. The key entered in the UI is not persisted.
+- OpenRouter can be configured with `LLM_ENDPOINT=https://openrouter.ai/api/v1`, `LLM_MODEL=google/gemma-4-31b-it:free`, and `OPENROUTER_API_KEY`. The OpenRouter key is used as a fallback for extraction and artefact generation when a per-request or `LLM_API_KEY` value is not supplied.
+- Configure native Gemini extraction with `GEMINI_ENDPOINT`, `GEMINI_MODEL` and `GEMINI_API_KEY`, or select Gemini in the UI and provide endpoint/model/key for a single request. Gemini requests use the native `generateContent` contract and the API key is sent through `x-goog-api-key`, not persisted by the application.
 - Every extracted requirement must cite a verbatim quote from a source segment. The API validates the quote, canonical requirement schema, and source offsets before storing results.
 - `GET /api/v1/documents` lists stored sources; `GET /api/v1/documents/{document_id}` returns extracted text, segments, warnings and requirements.
 

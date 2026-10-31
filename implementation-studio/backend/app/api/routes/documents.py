@@ -15,7 +15,7 @@ from app.core.document_store import (
     save_requirements,
 )
 from app.core.artefact_generation import ArtefactProviderError, generate_artefacts
-from app.core.requirement_extraction import extract_requirements
+from app.core.requirement_extraction import ExtractionProviderError, extract_requirements
 
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -23,7 +23,7 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 
 class ExtractionRequest(BaseModel):
-    mode: Literal["demo", "openai_compatible"] = "demo"
+    mode: Literal["demo", "openai_compatible", "gemini"] = "demo"
     endpoint: str | None = Field(default=None, max_length=500)
     model: str | None = Field(default=None, max_length=200)
     api_key: str | None = Field(default=None, max_length=1000)
@@ -41,7 +41,10 @@ def extraction_config():
         "default_mode": "demo",
         "endpoint": settings.llm_endpoint,
         "model": settings.llm_model,
-        "api_key_configured": bool(settings.llm_api_key),
+        "api_key_configured": bool(settings.llm_api_key or settings.openrouter_api_key),
+        "gemini_endpoint": settings.gemini_endpoint,
+        "gemini_model": settings.gemini_model,
+        "gemini_api_key_configured": bool(settings.gemini_api_key),
     }
 
 
@@ -100,6 +103,8 @@ async def extract_document_requirements(document_id: str, request: ExtractionReq
         return {"document_id": document_id, "mode": request.mode, "count": len(requirements), "requirements": saved["requirements"]}
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    except ExtractionProviderError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
     except Exception as error:
         raise HTTPException(status_code=502, detail=f"Extraction provider failed: {error}") from error
 

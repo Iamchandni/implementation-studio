@@ -110,7 +110,7 @@ async def generate_artefacts(
         if category:
             grouped[category].append(requirement)
 
-    effective_key = api_key or settings.llm_api_key
+    effective_key = api_key or settings.llm_api_key or settings.openrouter_api_key
     if grouped and not effective_key:
         raise ValueError("An API key is required to generate implementation artefacts.")
 

@@ -83,6 +83,39 @@ def _chat_completions_url(endpoint: str) -> str:
     return f"{base}/v1/chat/completions"
 
 
+class ExtractionProviderError(RuntimeError):
+    """Raised when an external extraction provider cannot return valid output."""
+
+
+def _extraction_prompt(document: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "task": "Extract candidate business requirements from source segments.",
+        "rules": [
+            "Return JSON only, shaped as {requirements: [...]} .",
+            "Use requirement_type BUSINESS_RULE, WORKFLOW, FIELD, VALIDATION, DEPENDENCY, PARAMETER, or OPEN_QUESTION.",
+            "Each item must include title, statement, normalized_intent, subject, attributes, conditions, outcomes, dependencies, evidence_segment_id, and source_text.",
+            "source_text must be a verbatim contiguous quote from the identified segment, with no edits or ellipses.",
+            "Do not infer missing facts. Put unresolved information in open_questions and use NEEDS_REVIEW when appropriate.",
+        ],
+        "segments": [{
+            "segment_id": segment["segment_id"], "page": segment["page"], "section": segment["section"],
+            "paragraph": segment["paragraph"], "sheet": segment["sheet"], "text": segment["text"],
+        } for segment in document["segments"]],
+    }
+
+
+def _parse_provider_json(content: Any) -> list[dict[str, Any]]:
+    if not isinstance(content, str) or not content.strip():
+        raise ExtractionProviderError("The extraction provider returned empty content.")
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError as error:
+        raise ExtractionProviderError("The extraction provider returned invalid JSON.") from error
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("requirements"), list):
+        raise ExtractionProviderError("The provider response must contain a requirements array.")
+    return parsed["requirements"]
+
+
 async def _openai_compatible_extract(document: dict[str, Any], endpoint: str, model: str, api_key: str) -> list[dict[str, Any]]:
     prompt = {
         "task": "Extract candidate business requirements from source segments.",
@@ -107,15 +140,67 @@ async def _openai_compatible_extract(document: dict[str, Any], endpoint: str, mo
             {"role": "system", "content": "You extract source-grounded business requirements. Never invent or paraphrase source evidence."},
             {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)},
         ],
+        "extra_body": {"reasoning": {"enabled": True}},
     }
     async with httpx.AsyncClient(timeout=90) as client:
-        response = await client.post(_chat_completions_url(endpoint), headers=headers, json=body)
-        response.raise_for_status()
-    content = response.json()["choices"][0]["message"]["content"]
-    parsed = json.loads(content)
-    if not isinstance(parsed, dict) or not isinstance(parsed.get("requirements"), list):
-        raise ValueError("The provider response must contain a requirements array.")
-    return parsed["requirements"]
+        try:
+            response = await client.post(_chat_completions_url(endpoint), headers=headers, json=body)
+            response.raise_for_status()
+            content = response.json()["choices"][0]["message"]["content"]
+        except httpx.HTTPStatusError as error:
+            status = error.response.status_code
+            if status == 429:
+                raise ExtractionProviderError("OpenAI-compatible provider rate limit reached (HTTP 429). Try again shortly or use another model.") from error
+            raise ExtractionProviderError(f"OpenAI-compatible extraction failed with HTTP {status}.") from error
+        except (KeyError, IndexError, TypeError, json.JSONDecodeError) as error:
+            raise ExtractionProviderError("OpenAI-compatible extraction returned an unexpected response.") from error
+    return _parse_provider_json(content)
+
+
+def _gemini_generate_content_url(endpoint: str, model: str) -> str:
+    base = endpoint.strip().rstrip("/")
+    if base.endswith(":generateContent"):
+        return base
+    if "/models/" in base:
+        return f"{base}:generateContent"
+    return f"{base}/models/{model}:generateContent"
+
+
+async def _gemini_extract(document: dict[str, Any], endpoint: str, model: str, api_key: str) -> list[dict[str, Any]]:
+    body = {
+        "systemInstruction": {
+            "parts": [{"text": "You extract source-grounded business requirements. Never invent or paraphrase source evidence."}],
+        },
+        "contents": [{
+            "role": "user",
+            "parts": [{"text": json.dumps(_extraction_prompt(document), ensure_ascii=False)}],
+        }],
+        "generationConfig": {
+            "temperature": 0,
+            "responseMimeType": "application/json",
+        },
+    }
+    async with httpx.AsyncClient(timeout=90) as client:
+        try:
+            response = await client.post(
+                _gemini_generate_content_url(endpoint, model),
+                headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
+                json=body,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            content = "".join(
+                part["text"]
+                for part in payload["candidates"][0]["content"]["parts"]
+                if isinstance(part, dict) and isinstance(part.get("text"), str)
+            )
+        except httpx.HTTPStatusError as error:
+            raise ExtractionProviderError(
+                f"Gemini extraction failed with HTTP {error.response.status_code}."
+            ) from error
+        except (KeyError, IndexError, TypeError, json.JSONDecodeError) as error:
+            raise ExtractionProviderError("Gemini returned an unexpected or blocked response.") from error
+    return _parse_provider_json(content)
 
 
 def _canonicalize(raw_items: list[dict[str, Any]], document: dict[str, Any]) -> list[dict[str, Any]]:
@@ -171,9 +256,20 @@ def _canonicalize(raw_items: list[dict[str, Any]], document: dict[str, Any]) -> 
 async def extract_requirements(document: dict[str, Any], mode: str, endpoint: str | None, model: str | None, api_key: str | None) -> list[dict[str, Any]]:
     if mode == "demo":
         return _canonicalize(demo_extract(document), document)
-    if mode != "openai_compatible":
-        raise ValueError("Mode must be 'demo' or 'openai_compatible'.")
-    effective_key = api_key or settings.llm_api_key
+    if mode not in {"openai_compatible", "gemini"}:
+        raise ValueError("Mode must be 'demo', 'openai_compatible', or 'gemini'.")
+    if mode == "gemini":
+        effective_key = api_key or settings.gemini_api_key
+        if not effective_key:
+            raise ValueError("A Gemini API key is required for Gemini extraction.")
+        raw_items = await _gemini_extract(
+            document,
+            endpoint or settings.gemini_endpoint,
+            model or settings.gemini_model,
+            effective_key,
+        )
+        return _canonicalize(raw_items, document)
+    effective_key = api_key or settings.llm_api_key or settings.openrouter_api_key
     if not effective_key:
         raise ValueError("An API key is required for OpenAI-compatible extraction.")
     raw_items = await _openai_compatible_extract(

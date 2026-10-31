@@ -21,12 +21,140 @@ function Location({ source }) {
   return <span>{parts.length ? parts.join(' / ') : 'Document text'}</span>
 }
 
+const MOCK_NODES = [
+  { id: 'trigger', kind: 'trigger', title: 'Loan application received', subtitle: 'TRIGGER', x: 40, y: 150 },
+  { id: 'eligibility', kind: 'step', title: 'Validate eligibility', subtitle: 'VALIDATION', x: 270, y: 150 },
+  { id: 'amount', kind: 'decision', title: 'Loan amount > ₹10L?', subtitle: 'DECISION', x: 500, y: 150 },
+  { id: 'manager', kind: 'step', title: 'Manager approval', subtitle: 'APPROVAL', x: 740, y: 55 },
+  { id: 'senior', kind: 'step', title: 'Senior manager approval', subtitle: 'APPROVAL', x: 980, y: 55 },
+  { id: 'standard', kind: 'step', title: 'Standard approval', subtitle: 'APPROVAL', x: 740, y: 260 },
+  { id: 'approved', kind: 'terminal', title: 'Application approved', subtitle: 'OUTCOME', x: 1220, y: 55 },
+  { id: 'rejected', kind: 'terminal danger', title: 'Application rejected', subtitle: 'OUTCOME', x: 980, y: 350 },
+]
+
+const MOCK_EDGES = [
+  ['trigger', 'eligibility', ''],
+  ['eligibility', 'amount', 'eligible'],
+  ['amount', 'manager', 'yes'],
+  ['amount', 'standard', 'no'],
+  ['manager', 'senior', 'approved'],
+  ['manager', 'rejected', 'rejected'],
+  ['senior', 'approved', 'approved'],
+  ['senior', 'rejected', 'rejected'],
+  ['standard', 'approved', 'approved'],
+  ['standard', 'rejected', 'rejected'],
+]
+
+function edgePath(start, end) {
+  const sourceX = start.x + 180
+  const sourceY = start.y + 42
+  const targetX = end.x
+  const targetY = end.y + 42
+  const middleX = sourceX + Math.max(28, (targetX - sourceX) / 2)
+  return {
+    path: `M ${sourceX} ${sourceY} L ${middleX} ${sourceY} L ${middleX} ${targetY} L ${targetX} ${targetY}`,
+    labelX: middleX,
+    labelY: (sourceY + targetY) / 2 - 5,
+  }
+}
+
+function MockCanvas() {
+  const [nodes, setNodes] = useState(MOCK_NODES)
+  const [selectedId, setSelectedId] = useState('eligibility')
+  const [running, setRunning] = useState(false)
+  const [zoom, setZoom] = useState(1)
+  const drag = useRef(null)
+  const selected = nodes.find((node) => node.id === selectedId) || nodes[0]
+
+  function moveNode(event) {
+    if (!drag.current) return
+    const { id, offsetX, offsetY } = drag.current
+    const { canvasLeft, canvasTop } = drag.current
+    setNodes((current) => current.map((node) => node.id === id
+      ? { ...node, x: Math.max(20, (event.clientX - canvasLeft) / zoom - offsetX), y: Math.max(20, (event.clientY - canvasTop) / zoom - offsetY) }
+      : node))
+  }
+
+  function startDrag(event, node) {
+    event.stopPropagation()
+    const bounds = event.currentTarget.parentElement.getBoundingClientRect()
+    drag.current = {
+      id: node.id,
+      canvasLeft: bounds.left,
+      canvasTop: bounds.top,
+      offsetX: (event.clientX - bounds.left) / zoom - node.x,
+      offsetY: (event.clientY - bounds.top) / zoom - node.y,
+    }
+    setSelectedId(node.id)
+    window.addEventListener('pointermove', moveNode)
+    window.addEventListener('pointerup', stopDrag, { once: true })
+  }
+
+  function stopDrag() {
+    drag.current = null
+    window.removeEventListener('pointermove', moveNode)
+  }
+
+  function reset() {
+    setNodes(MOCK_NODES)
+    setSelectedId('eligibility')
+    setZoom(1)
+  }
+
+  function runSimulation() {
+    setRunning(true)
+    window.setTimeout(() => setRunning(false), 1800)
+  }
+
+  return <main className="mock-shell">
+    <header className="mock-topbar">
+      <div className="mock-brand"><span className="brand-mark">IS</span><div><strong>Implementation Studio</strong><small>WORKFLOW CANVAS / DEMO</small></div></div>
+      <div className="mock-actions"><span className="mock-badge">HARDCODED DEMO</span><button type="button" onClick={reset}>Reset layout</button><button type="button" className="mock-run" onClick={runSimulation}>{running ? 'Running…' : 'Run simulation'} <span>▶</span></button></div>
+    </header>
+    <div className="mock-layout">
+      <aside className="mock-palette"><span className="mock-eyebrow">NODE PALETTE</span><h2>Personal loan flow</h2><p>Drag nodes to explore the generated implementation shape.</p>
+        {['Trigger', 'Validation', 'Decision', 'Approval', 'Outcome'].map((item) => <div className="palette-item" key={item}><span className={`palette-dot ${item.toLowerCase()}`} />{item}<span>+</span></div>)}
+        <div className="mock-legend"><span className="mock-eyebrow">LEGEND</span><div><i className="edge-dot green" />Approved path</div><div><i className="edge-dot red" />Rejected path</div></div>
+      </aside>
+      <section className="mock-stage">
+        <div className="mock-toolbar"><span><strong>Loan approval workflow</strong> <small>v1.0 · GENERATED</small></span><div><button type="button" onClick={() => setZoom((value) => Math.max(.7, value - .1))}>−</button><span>{Math.round(zoom * 100)}%</span><button type="button" onClick={() => setZoom((value) => Math.min(1.3, value + .1))}>+</button></div></div>
+        <div className="mock-canvas" onPointerMove={moveNode}>
+          <div className="mock-grid" />
+          <div className="mock-world" style={{ transform: `scale(${zoom})` }}>
+            <svg className="mock-edges" width="1460" height="500" viewBox="0 0 1460 500" aria-hidden="true">
+              {MOCK_EDGES.map(([from, to, label]) => {
+                const start = nodes.find((node) => node.id === from)
+                const end = nodes.find((node) => node.id === to)
+                const route = edgePath(start, end)
+                return <g key={`${from}-${to}`}><path className={label === 'rejected' ? 'rejected-edge' : 'approved-edge'} d={route.path} /><text x={route.labelX + 6} y={route.labelY}>{label}</text></g>
+              })}
+            </svg>
+            <div className="mock-node-layer">
+              {nodes.map((node) => <button type="button" key={node.id} className={`mock-node ${node.kind} ${selectedId === node.id ? 'selected' : ''}`} style={{ left: node.x, top: node.y }} onPointerDown={(event) => startDrag(event, node)} onClick={() => setSelectedId(node.id)}><span>{node.subtitle}</span><strong>{node.title}</strong><i>{node.kind === 'decision' ? '?' : node.kind === 'terminal' || node.kind.includes('danger') ? '●' : '→'}</i></button>)}
+            </div>
+          </div>
+        </div>
+        <div className={`mock-runbar ${running ? 'running' : ''}`}><span className="run-pulse" /><strong>{running ? 'Simulation running' : 'Ready to simulate'}</strong><span>{running ? 'Following approved path through the workflow…' : 'Select Run simulation to preview the approval path'}</span></div>
+      </section>
+      <aside className="mock-inspector"><span className="mock-eyebrow">INSPECTOR</span><h2>{selected.title}</h2><span className={`inspector-type ${selected.kind}`}>{selected.subtitle}</span><div className="inspector-section"><label>Node ID</label><code>{selected.id}</code></div><div className="inspector-section"><label>Source requirement</label><p>{selected.id === 'eligibility' ? 'REQ-0002 · Applicant eligibility rules' : 'REQ-0005 · Approval workflow'}</p></div><div className="inspector-section"><label>Configuration</label><div className="inspector-json">{JSON.stringify({ type: selected.kind.replace(' danger', ''), status: 'validated', review: 'approved' }, null, 2)}</div></div></aside>
+    </div>
+  </main>
+}
+
 export default function App() {
+  if (new URLSearchParams(window.location.search).has('mock-workflow')) return <MockCanvas />
   const fileInput = useRef(null)
   const [documents, setDocuments] = useState([])
   const [documentId, setDocumentId] = useState('')
   const [document, setDocument] = useState(null)
-  const [config, setConfig] = useState({ endpoint: 'https://api.openai.com/v1', model: 'gpt-4o-mini', api_key_configured: false })
+  const [config, setConfig] = useState({
+    endpoint: 'https://api.openai.com/v1',
+    model: 'gpt-4o-mini',
+    api_key_configured: false,
+    gemini_endpoint: 'https://generativelanguage.googleapis.com/v1beta',
+    gemini_model: 'gemini-2.0-flash',
+    gemini_api_key_configured: false,
+  })
   const [mode, setMode] = useState('demo')
   const [endpoint, setEndpoint] = useState('https://api.openai.com/v1')
   const [model, setModel] = useState('gpt-4o-mini')
@@ -184,7 +312,7 @@ export default function App() {
       <section className="content">
         <header className="topbar">
           <div><div className="eyebrow">SOURCE LIBRARY / MILESTONE 2</div><h1>Documents & requirements</h1></div>
-          <div className="topbar-meta"><span className="status-pill">PROTOTYPE</span><span className="avatar">IS</span></div>
+          <div className="topbar-meta"><button className="button secondary canvas-launch" type="button" onClick={() => window.open(`${window.location.pathname}?mock-workflow=1`, 'implementation-studio-mock-canvas', 'width=1500,height=900')}>Open mock canvas ↗</button><span className="status-pill">PROTOTYPE</span><span className="avatar">IS</span></div>
         </header>
 
         <section className="summary-strip" aria-label="Workspace summary">
@@ -242,12 +370,13 @@ export default function App() {
                 <div className="extract-panel-heading"><div><span className="eyebrow">03 / EXTRACT</span><h3>Requirement extraction</h3></div><span className={`mode-label ${mode}`}>{mode === 'demo' ? 'DEMO MODE' : 'API MODE'}</span></div>
                 <div className="mode-switch" role="group" aria-label="Extraction mode">
                   <button type="button" className={mode === 'demo' ? 'chosen' : ''} onClick={() => setMode('demo')}>Demo extraction</button>
-                  <button type="button" className={mode === 'openai_compatible' ? 'chosen' : ''} onClick={() => setMode('openai_compatible')}>OpenAI-compatible</button>
+                  <button type="button" className={mode === 'openai_compatible' ? 'chosen' : ''} onClick={() => { setMode('openai_compatible'); setEndpoint(config.endpoint); setModel(config.model) }}>OpenAI-compatible</button>
+                  <button type="button" className={mode === 'gemini' ? 'chosen' : ''} onClick={() => { setMode('gemini'); setEndpoint(config.gemini_endpoint); setModel(config.gemini_model) }}>Gemini</button>
                 </div>
                 {mode === 'demo' ? <p className="mode-note">Heuristic candidates for testing. All results are marked for review and are not production extraction.</p> : <div className="provider-fields">
-                  <label>API endpoint<input value={endpoint} onChange={(event) => setEndpoint(event.target.value)} placeholder="https://provider.example/v1" /></label>
+                  <label>{mode === 'gemini' ? 'Gemini endpoint' : 'API endpoint'}<input value={endpoint} onChange={(event) => setEndpoint(event.target.value)} placeholder={mode === 'gemini' ? 'https://generativelanguage.googleapis.com/v1beta' : 'https://provider.example/v1'} /></label>
                   <label>Model<input value={model} onChange={(event) => setModel(event.target.value)} placeholder="Model identifier" /></label>
-                  <label className="key-field">API key<input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={config.api_key_configured ? 'Using server-configured key' : 'Used for this request; not stored'} autoComplete="off" /></label>
+                  <label className="key-field">API key<input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={(mode === 'gemini' ? config.gemini_api_key_configured : config.api_key_configured) ? 'Using server-configured key' : 'Used for this request; not stored'} autoComplete="off" /></label>
                 </div>}
                 <div className="extract-actions"><span>{document.segments?.length || 0} readable source segments</span><button className="button primary" type="button" disabled={busy || !document.segments?.length} onClick={extract}>{busy ? 'Extracting…' : 'Run extraction'}<span aria-hidden="true">↗</span></button></div>
               </section>
