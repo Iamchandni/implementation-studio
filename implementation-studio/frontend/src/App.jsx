@@ -33,6 +33,7 @@ export default function App() {
   const [apiKey, setApiKey] = useState('')
   const [view, setView] = useState('requirements')
   const [busy, setBusy] = useState(false)
+  const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [apiStatus, setApiStatus] = useState('Checking API')
@@ -119,13 +120,54 @@ export default function App() {
     }
   }
 
+  async function approveRequirement(requirementId) {
+    if (!document) return
+    setBusy(true)
+    setError('')
+    try {
+      await request(`/documents/${document.document_id}/requirements/${requirementId}/approve`, { method: 'POST' })
+      setDocument(await request(`/documents/${document.document_id}`))
+      await refreshDocuments()
+      setNotice(`${requirementId} approved for artefact generation.`)
+    } catch (cause) {
+      setError(cause.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function generateArtefacts() {
+    if (!document) return
+    setGenerating(true)
+    setError('')
+    setNotice('')
+    try {
+      const result = await request(`/documents/${document.document_id}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint, model, api_key: apiKey || null }),
+      })
+      setDocument(await request(`/documents/${document.document_id}`))
+      await refreshDocuments()
+      setView('artefacts')
+      setNotice(`${result.report.artefact_count} artefacts generated; ${result.report.unproduced_requirements.length} requirements have no artefact.`)
+      setApiKey('')
+    } catch (cause) {
+      setError(cause.message)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   function onDrop(event) {
     event.preventDefault()
     uploadFile(event.dataTransfer.files[0])
   }
 
   const requirementCount = documents.reduce((total, item) => total + (item.requirement_count || 0), 0)
+  const artefactCount = documents.reduce((total, item) => total + (item.artefact_count || 0), 0)
   const warningCount = documents.reduce((total, item) => total + (item.warnings?.length || 0), 0)
+  const approvedCount = document?.requirements?.filter((item) => item.status === 'APPROVED').length || 0
 
   return (
     <main className="shell">
@@ -134,7 +176,7 @@ export default function App() {
         <div className="nav-label">WORKSPACE</div>
         <div className="nav-item active"><span className="nav-glyph">▤</span>Documents</div>
         <div className="nav-item muted"><span className="nav-glyph">≡</span>Requirements</div>
-        <div className="nav-item muted"><span className="nav-glyph">◇</span>Artefacts <small>Next</small></div>
+        <button className={`nav-item ${view === 'artefacts' ? 'active' : 'muted'}`} type="button" disabled={!document} onClick={() => setView('artefacts')}><span className="nav-glyph">◇</span>Artefacts</button>
         <div className="nav-item muted"><span className="nav-glyph">↗</span>Traceability <small>Next</small></div>
         <div className="sidebar-bottom"><span className={`api-dot ${apiStatus === 'API connected' ? 'online' : ''}`} />{apiStatus}<small>Local workspace</small></div>
       </aside>
@@ -148,6 +190,7 @@ export default function App() {
         <section className="summary-strip" aria-label="Workspace summary">
           <div><span>Source documents</span><strong>{documents.length.toString().padStart(2, '0')}</strong></div>
           <div><span>Requirements</span><strong>{requirementCount.toString().padStart(2, '0')}</strong></div>
+          <div><span>Artefacts</span><strong>{artefactCount.toString().padStart(2, '0')}</strong></div>
           <div><span>Extraction warnings</span><strong className={warningCount ? 'warning-number' : ''}>{warningCount.toString().padStart(2, '0')}</strong></div>
           <p>INGESTION &nbsp;·&nbsp; EVIDENCE &nbsp;·&nbsp; REVIEW</p>
         </section>
@@ -210,15 +253,19 @@ export default function App() {
               </section>
 
               <section className="results-section">
-                <div className="results-heading"><div><span className="eyebrow">04 / REVIEW</span><h3>Extracted requirements <span>{document.requirements?.length || 0}</span></h3></div><div className="view-switch" role="tablist" aria-label="Document result view">
-                  <button role="tab" aria-selected={view === 'requirements'} className={view === 'requirements' ? 'active' : ''} onClick={() => setView('requirements')}>Requirements</button>
-                  <button role="tab" aria-selected={view === 'source'} className={view === 'source' ? 'active' : ''} onClick={() => setView('source')}>Source text</button>
-                  <button role="tab" aria-selected={view === 'json'} className={view === 'json' ? 'active' : ''} onClick={() => setView('json')}>JSON</button>
+                <div className="results-heading"><div><span className="eyebrow">04 / REVIEW</span><h3>{view === 'artefacts' ? 'Generated artefacts' : 'Extracted requirements'} <span>{view === 'artefacts' ? document.artefacts?.length || 0 : document.requirements?.length || 0}</span></h3></div><div className="results-controls">
+                  <button className="button primary generate-button" type="button" disabled={generating || !approvedCount} title={!approvedCount ? 'Approve requirements without open questions first' : 'Generate from approved requirements'} onClick={generateArtefacts}>{generating ? 'Generating…' : `Generate (${approvedCount})`}<span aria-hidden="true">↗</span></button>
+                  <div className="view-switch" role="tablist" aria-label="Document result view">
+                    <button role="tab" aria-selected={view === 'requirements'} className={view === 'requirements' ? 'active' : ''} onClick={() => setView('requirements')}>Requirements</button>
+                    <button role="tab" aria-selected={view === 'artefacts'} className={view === 'artefacts' ? 'active' : ''} onClick={() => setView('artefacts')}>Artefacts</button>
+                    <button role="tab" aria-selected={view === 'source'} className={view === 'source' ? 'active' : ''} onClick={() => setView('source')}>Source</button>
+                    <button role="tab" aria-selected={view === 'json'} className={view === 'json' ? 'active' : ''} onClick={() => setView('json')}>JSON</button>
+                  </div>
                 </div></div>
 
                 {view === 'requirements' && <div className="requirements-list">
                   {(document.requirements || []).map((item) => <article className="requirement-row" key={item.requirement_id}>
-                    <div className="requirement-meta"><span className="requirement-id">{item.requirement_id}</span><span className={`type-tag type-${item.requirement_type.toLowerCase()}`}>{item.requirement_type.replaceAll('_', ' ')}</span><span className="review-tag">{item.status.replaceAll('_', ' ')}</span></div>
+                    <div className="requirement-meta"><span className="requirement-id">{item.requirement_id}</span><span className={`type-tag type-${item.requirement_type.toLowerCase()}`}>{item.requirement_type.replaceAll('_', ' ')}</span><span className={`review-tag ${item.status === 'APPROVED' ? 'approved' : ''}`}>{item.status.replaceAll('_', ' ')}</span>{item.status !== 'APPROVED' && <button className="approve-button" type="button" disabled={busy || item.requirement_type === 'OPEN_QUESTION' || item.open_questions?.length > 0} title={item.requirement_type === 'OPEN_QUESTION' || item.open_questions?.length ? 'Resolve open questions before approval' : 'Approve for artefact generation'} onClick={() => approveRequirement(item.requirement_id)}>Approve</button>}</div>
                     <h4>{item.title}</h4><p className="requirement-statement">{item.statement}</p>
                     <blockquote>{item.source.source_text}</blockquote>
                     <div className="source-location"><span>↳</span><Location source={item.source} /><span className="confidence">{Math.round((item.confidence || 0) * 100)}% confidence</span></div>
@@ -233,6 +280,19 @@ export default function App() {
                 </div>}
 
                 {view === 'json' && <pre className="json-preview">{JSON.stringify(document.requirements || [], null, 2)}</pre>}
+
+                {view === 'artefacts' && <div className="artefacts-list">
+                  {document.generation_report && <div className="generation-summary"><span>{document.generation_report.validated_count} validated</span><span>{document.generation_report.validation_failed_count} failed validation</span><span>{document.generation_report.unproduced_requirements?.length || 0} unproduced requirements</span></div>}
+                  {(document.artefacts || []).map((entry) => <article className="artefact-row" key={entry.artefact.artefact_id}>
+                    <div className="artefact-heading"><div><span className="requirement-id">{entry.artefact.artefact_id}</span><span className="type-tag">{entry.artefact.artefact_type.replaceAll('_', ' ')}</span></div><span className={`artifact-status ${entry.validation_passed ? 'valid' : 'invalid'}`}>{entry.artefact.status.replaceAll('_', ' ')}</span></div>
+                    <h4>{entry.artefact.name}</h4><p>{entry.artefact.description}</p>
+                    <pre className="configuration-preview">{JSON.stringify(entry.artefact.configuration, null, 2)}</pre>
+                    <div className="artefact-links"><span>Requirements: {entry.artefact.source_requirements.join(', ')}</span><span>Schema: {entry.schema_path}</span></div>
+                    {entry.validation_errors?.length > 0 && <div className="validation-errors"><strong>Schema validation errors</strong>{entry.validation_errors.map((message) => <span key={message}>{message}</span>)}</div>}
+                  </article>)}
+                  {document.generation_report?.unproduced_requirements?.length > 0 && <section className="unproduced-list"><h4>Requirements without artefacts</h4>{document.generation_report.unproduced_requirements.map((item) => <div key={item.requirement_id}><span>{item.requirement_id} · {item.title}</span><strong>{item.reason.replaceAll('_', ' ')}</strong></div>)}</section>}
+                  {!document.artefacts?.length && <div className="empty-results"><span>◇</span><strong>No artefacts generated</strong><p>Approve eligible requirements, then generate configurations.</p></div>}
+                </div>}
               </section>
             </> : <div className="select-empty"><div className="empty-symbol">↑</div><span className="eyebrow">SOURCE LIBRARY</span><h2>Add a document to begin</h2><p>Upload a supported business document to inspect its extracted text and create traceable requirement candidates.</p><button className="button primary" type="button" onClick={() => fileInput.current?.click()}>Choose a file <span aria-hidden="true">↗</span></button></div>}
           </section>

@@ -223,6 +223,7 @@ def list_documents() -> list[dict[str, Any]]:
             record = json.loads(path.read_text(encoding="utf-8"))
             documents.append({key: record[key] for key in ("document_id", "document_name", "file_type", "size_bytes", "created_at", "warnings")})
             documents[-1]["requirement_count"] = len(record.get("requirements", []))
+            documents[-1]["artefact_count"] = len(record.get("artefacts", []))
         except (OSError, json.JSONDecodeError, KeyError):
             continue
     return sorted(documents, key=lambda item: item["created_at"], reverse=True)
@@ -236,4 +237,33 @@ def save_requirements(document_id: str, requirements: list[dict[str, Any]], mode
     record["extraction_mode"] = mode
     _write_json(storage_root() / document_id / "document.json", record)
     _write_json(storage_root() / document_id / "requirements.json", requirements)
+    return record
+
+
+def approve_requirement(document_id: str, requirement_id: str) -> dict[str, Any] | None:
+    record = get_document(document_id)
+    if record is None:
+        return None
+    requirement = next((item for item in record.get("requirements", []) if item["requirement_id"] == requirement_id), None)
+    if requirement is None:
+        return None
+    requirement["status"] = "APPROVED"
+    _write_json(storage_root() / document_id / "document.json", record)
+    _write_json(storage_root() / document_id / "requirements.json", record["requirements"])
+    return record
+
+
+def save_artefacts(
+    document_id: str,
+    artefacts: list[dict[str, Any]],
+    report: dict[str, Any],
+) -> dict[str, Any] | None:
+    record = get_document(document_id)
+    if record is None:
+        return None
+    record["artefacts"] = artefacts
+    record["generation_report"] = report
+    _write_json(storage_root() / document_id / "document.json", record)
+    _write_json(storage_root() / document_id / "artefacts.json", artefacts)
+    _write_json(storage_root() / document_id / "generation_report.json", report)
     return record

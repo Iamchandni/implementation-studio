@@ -98,6 +98,14 @@ Uploaded originals, extracted text, source segments, warnings and canonical requ
 - Every extracted requirement must cite a verbatim quote from a source segment. The API validates the quote, canonical requirement schema, and source offsets before storing results.
 - `GET /api/v1/documents` lists stored sources; `GET /api/v1/documents/{document_id}` returns extracted text, segments, warnings and requirements.
 
+### Artefact generation
+
+- Approve a reviewed requirement with `POST /api/v1/documents/{document_id}/requirements/{requirement_id}/approve`. Requirements with unresolved questions, including `OPEN_QUESTION` records, cannot be approved.
+- Generate configurations from approved requirements with `POST /api/v1/documents/{document_id}/generate`. This uses the configured OpenAI-compatible provider and requires a provider API key when a supported requirement is ready.
+- Requirement categories route to their corresponding contracts: `PARAMETER` to the parameter schema, `BUSINESS_RULE` to business-rule, `VALIDATION` and `FIELD` to validation, and `WORKFLOW` to workflow. Unsupported types are reported rather than guessed.
+- Generated artefacts are linked by `source_requirements`, assigned `VALIDATED` or `VALIDATION_FAILED`, and returned with their selected schema path and validation errors. The generation report lists approved requirements that produced no artefact, as well as items not approved or unsupported.
+- Artefacts and generation reports are stored with the document and exposed by `GET /api/v1/documents/{document_id}`.
+
 Common environment settings are shown in `backend/.env.example`. The default storage directory is relative to the backend directory.
 
 ## 3. Start the frontend
@@ -145,6 +153,6 @@ The parameter, business-rule and workflow schemas define category-specific confi
 The sample artefacts are illustrative canonical configurations. They are not guaranteed to be directly executable by a particular bank's lending platform.
 
 ## Next milestone
-1. Add project-level organization and PostgreSQL migrations for document and requirement records.
-2. Add human review actions and requirement editing with evidence-preserving change tracking.
-3. Generate implementation artefacts from approved canonical requirements and validate them.
+1. Add project-level organization and PostgreSQL migrations for document, requirement and artefact records.
+2. Add requirement and artefact editing with evidence-preserving version history.
+3. Add review, approval and publication workflows for generated configurations.

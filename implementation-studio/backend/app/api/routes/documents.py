@@ -8,10 +8,13 @@ from app.core.config import settings
 from app.core.document_store import (
     SUPPORTED_EXTENSIONS,
     create_document,
+    approve_requirement,
     get_document,
     list_documents,
+    save_artefacts,
     save_requirements,
 )
+from app.core.artefact_generation import ArtefactProviderError, generate_artefacts
 from app.core.requirement_extraction import extract_requirements
 
 
@@ -21,6 +24,12 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
 class ExtractionRequest(BaseModel):
     mode: Literal["demo", "openai_compatible"] = "demo"
+    endpoint: str | None = Field(default=None, max_length=500)
+    model: str | None = Field(default=None, max_length=200)
+    api_key: str | None = Field(default=None, max_length=1000)
+
+
+class GenerationRequest(BaseModel):
     endpoint: str | None = Field(default=None, max_length=500)
     model: str | None = Field(default=None, max_length=200)
     api_key: str | None = Field(default=None, max_length=1000)
@@ -64,6 +73,20 @@ def document(document_id: str):
     return record
 
 
+@router.post("/{document_id}/requirements/{requirement_id}/approve")
+def approve_document_requirement(document_id: str, requirement_id: str):
+    record = get_document(document_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    requirement = next((item for item in record.get("requirements", []) if item["requirement_id"] == requirement_id), None)
+    if requirement is None:
+        raise HTTPException(status_code=404, detail="Requirement not found.")
+    if requirement.get("requirement_type") == "OPEN_QUESTION" or requirement.get("open_questions"):
+        raise HTTPException(status_code=409, detail="Resolve open questions before approving this requirement.")
+    saved = approve_requirement(document_id, requirement_id)
+    return next(item for item in saved["requirements"] if item["requirement_id"] == requirement_id)
+
+
 @router.post("/{document_id}/extract")
 async def extract_document_requirements(document_id: str, request: ExtractionRequest):
     record = get_document(document_id)
@@ -79,3 +102,18 @@ async def extract_document_requirements(document_id: str, request: ExtractionReq
         raise HTTPException(status_code=422, detail=str(error)) from error
     except Exception as error:
         raise HTTPException(status_code=502, detail=f"Extraction provider failed: {error}") from error
+
+
+@router.post("/{document_id}/generate")
+async def generate_document_artefacts(document_id: str, request: GenerationRequest):
+    record = get_document(document_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    try:
+        artefacts, report = await generate_artefacts(record, request.endpoint, request.model, request.api_key)
+        saved = save_artefacts(document_id, artefacts, report)
+        return {"document_id": document_id, "artefacts": saved["artefacts"], "report": saved["generation_report"]}
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except ArtefactProviderError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error

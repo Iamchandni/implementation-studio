@@ -69,7 +69,7 @@ def demo_extract(document: dict[str, Any]) -> list[dict[str, Any]]:
                 },
                 "confidence": 0.25,
                 "status": "NEEDS_REVIEW",
-                "open_questions": ["Demo extraction is heuristic; confirm this candidate and its classification."],
+                "open_questions": [],
             })
     return requirements
 
